@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomodoro Timer</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <h1 class="app__title">Pomodoro Timer</h1>
+
+    <!-- Mode switcher -->
+    <div class="modes" role="group" aria-label="Timer mode">
+      <button type="button" class="mode-btn" data-mode="focus" aria-pressed="true">Focus</button>
+      <button type="button" class="mode-btn" data-mode="short" aria-pressed="false">Short break</button>
+      <button type="button" class="mode-btn" data-mode="long" aria-pressed="false">Long break</button>
+    </div>
+
+    <!-- Timer -->
+    <section class="timer" aria-label="Timer">
+      <div class="ring">
+        <svg class="ring__svg" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring__track" cx="60" cy="60" r="54"></circle>
+          <circle id="ring-progress" class="ring__progress" cx="60" cy="60" r="54"></circle>
+        </svg>
+
+        <div class="ring__content">
+          <p id="time-display" class="time" role="timer">25:00</p>
+          <p id="mode-label" class="mode-label">Time to focus</p>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button type="button" id="start-btn" class="btn btn--primary">Start</button>
+        <button type="button" id="reset-btn" class="btn btn--secondary">Reset</button>
+      </div>
+
+      <div class="sessions">
+        <div id="cycle-dots" class="cycle-dots" aria-hidden="true"></div>
+        <p><span id="session-count">0</span> focus sessions completed</p>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <details class="settings">
+      <summary>Settings</summary>
+
+      <form id="settings-form" class="settings__form" novalidate>
+        <div class="form-group">
+          <label for="focus-minutes">Focus (minutes)</label>
+          <input type="number" id="focus-minutes" name="focus" min="1" max="120" value="25">
+        </div>
+
+        <div class="form-group">
+          <label for="short-minutes">Short break (minutes)</label>
+          <input type="number" id="short-minutes" name="short" min="1" max="60" value="5">
+        </div>
+
+        <div class="form-group">
+          <label for="long-minutes">Long break (minutes)</label>
+          <input type="number" id="long-minutes" name="long" min="1" max="60" value="15">
+        </div>
+
+        <label class="checkbox">
+          <input type="checkbox" id="sound-enabled" name="sound" checked>
+          Play a sound when time is up
+        </label>
+
+        <p id="settings-error" class="form-error" role="alert"></p>
+
+        <button type="submit" class="btn btn--primary">Save settings</button>
+      </form>
+    </details>
+  </main>
+</body>
+</html>
