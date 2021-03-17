@@ -2,6 +2,7 @@
 const timeDisplay = document.getElementById("time-display");
 const modeLabel = document.getElementById("mode-label");
 const startBtn = document.getElementById("start-btn");
+const resetBtn = document.getElementById("reset-btn");
 
 // ===== Config =====
 const MS_PER_SECOND = 1000;
@@ -13,6 +14,13 @@ const MODES = {
   focus: { label: "Time to focus" },
   short: { label: "Take a short break" },
   long: { label: "Take a long break" },
+};
+
+// What the main button says for each status
+const START_BUTTON_LABELS = {
+  idle: "Start",
+  running: "Pause",
+  paused: "Resume",
 };
 
 // Durations in minutes (made editable in Step 11)
@@ -49,6 +57,7 @@ function formatTime(ms) {
 function render() {
   timeDisplay.textContent = formatTime(state.remainingMs);
   modeLabel.textContent = MODES[state.mode].label;
+  startBtn.textContent = START_BUTTON_LABELS[state.status];
   document.body.classList.toggle("is-running", state.status === "running");
 }
 
@@ -56,6 +65,11 @@ function render() {
 function startTimer() {
   // Guard: starting twice would create two intervals counting at once
   if (state.status === "running") return;
+
+  // Starting again after reaching 00:00 begins a fresh countdown
+  if (state.remainingMs === 0) {
+    state.remainingMs = getDurationMs(state.mode);
+  }
 
   // Remember WHEN the timer should end, not how many ticks are left
   state.endTime = Date.now() + state.remainingMs;
@@ -75,6 +89,25 @@ function tick() {
   render();
 }
 
+function pauseTimer() {
+  if (state.status !== "running") return;
+
+  stopTicking();
+  // Save exactly how much time was left at the moment of pausing
+  state.remainingMs = Math.max(0, state.endTime - Date.now());
+  state.endTime = null;
+  state.status = "paused";
+  render();
+}
+
+function resetTimer() {
+  stopTicking();
+  state.status = "idle";
+  state.endTime = null;
+  state.remainingMs = getDurationMs(state.mode);
+  render();
+}
+
 function stopTicking() {
   clearInterval(state.intervalId);
   state.intervalId = null;
@@ -87,10 +120,16 @@ function handleTimeUp() {
 }
 
 // ===== Event handlers =====
+// One button: Start / Pause / Resume depending on the status
 function handleStartClick() {
-  startTimer();
+  if (state.status === "running") {
+    pauseTimer();
+  } else {
+    startTimer();
+  }
 }
 
 // ===== Init =====
 startBtn.addEventListener("click", handleStartClick);
+resetBtn.addEventListener("click", resetTimer);
 render();
