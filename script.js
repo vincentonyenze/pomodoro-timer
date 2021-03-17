@@ -3,6 +3,8 @@ const timeDisplay = document.getElementById("time-display");
 const modeLabel = document.getElementById("mode-label");
 const startBtn = document.getElementById("start-btn");
 const resetBtn = document.getElementById("reset-btn");
+const modesEl = document.querySelector(".modes");
+const modeButtons = document.querySelectorAll(".mode-btn");
 
 // ===== Config =====
 const MS_PER_SECOND = 1000;
@@ -59,6 +61,12 @@ function render() {
   modeLabel.textContent = MODES[state.mode].label;
   startBtn.textContent = START_BUTTON_LABELS[state.status];
   document.body.classList.toggle("is-running", state.status === "running");
+
+  // The CSS switches colors from this attribute
+  document.body.dataset.mode = state.mode;
+  modeButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", button.dataset.mode === state.mode);
+  });
 }
 
 // ===== Timer =====
@@ -108,6 +116,14 @@ function resetTimer() {
   render();
 }
 
+function setMode(mode) {
+  if (!MODES[mode]) return;
+
+  state.mode = mode;
+  // A new mode always starts fresh, even if the old one was running
+  resetTimer();
+}
+
 function stopTicking() {
   clearInterval(state.intervalId);
   state.intervalId = null;
@@ -129,7 +145,18 @@ function handleStartClick() {
   }
 }
 
+function handleModeClick(event) {
+  const button = event.target.closest(".mode-btn");
+  if (!button) return;
+
+  // Clicking the mode you're already in shouldn't wipe your progress
+  if (button.dataset.mode === state.mode) return;
+
+  setMode(button.dataset.mode);
+}
+
 // ===== Init =====
 startBtn.addEventListener("click", handleStartClick);
+modesEl.addEventListener("click", handleModeClick);
 resetBtn.addEventListener("click", resetTimer);
 render();
