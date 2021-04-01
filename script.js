@@ -5,12 +5,15 @@ const startBtn = document.getElementById("start-btn");
 const resetBtn = document.getElementById("reset-btn");
 const modesEl = document.querySelector(".modes");
 const modeButtons = document.querySelectorAll(".mode-btn");
+const cycleDotsEl = document.getElementById("cycle-dots");
+const sessionText = document.getElementById("session-text");
 
 // ===== Config =====
 const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60 * MS_PER_SECOND;
 // Check 4 times a second so the display changes close to each real second
 const TICK_MS = 250;
+const SESSIONS_BEFORE_LONG_BREAK = 4;
 
 const MODES = {
   focus: { label: "Time to focus" },
@@ -39,6 +42,7 @@ const state = {
   remainingMs: settings.focus * MS_PER_MINUTE,
   endTime: null, // timestamp (ms) when the running timer reaches 0
   intervalId: null, // id from setInterval, needed to stop it
+  completedSessions: 0, // finished focus sessions
 };
 
 // ===== Helpers =====
@@ -55,7 +59,35 @@ function formatTime(ms) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+// How many dots to fill in the current cycle of 4
+function getFilledDots() {
+  const inCycle = state.completedSessions % SESSIONS_BEFORE_LONG_BREAK;
+  // Right after the 4th session (during the long break) show all 4 filled
+  const cycleJustFinished =
+    inCycle === 0 && state.completedSessions > 0 && state.mode !== "focus";
+  return cycleJustFinished ? SESSIONS_BEFORE_LONG_BREAK : inCycle;
+}
+
 // ===== Rendering =====
+function createCycleDots() {
+  const dots = Array.from({ length: SESSIONS_BEFORE_LONG_BREAK }, () => {
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    return dot;
+  });
+  cycleDotsEl.replaceChildren(...dots);
+}
+
+function renderSessions() {
+  const filled = getFilledDots();
+  [...cycleDotsEl.children].forEach((dot, index) => {
+    dot.classList.toggle("is-filled", index < filled);
+  });
+
+  const count = state.completedSessions;
+  sessionText.textContent = `${count} focus session${count === 1 ? "" : "s"} completed`;
+}
+
 function render() {
   timeDisplay.textContent = formatTime(state.remainingMs);
   modeLabel.textContent = MODES[state.mode].label;
@@ -67,6 +99,8 @@ function render() {
   modeButtons.forEach((button) => {
     button.setAttribute("aria-pressed", button.dataset.mode === state.mode);
   });
+
+  renderSessions();
 }
 
 // ===== Timer =====
@@ -129,10 +163,22 @@ function stopTicking() {
   state.intervalId = null;
 }
 
+// After focus: short break, or a long break every 4th session.
+// After any break: back to focus.
+function getNextMode() {
+  if (state.mode !== "focus") return "focus";
+  return state.completedSessions % SESSIONS_BEFORE_LONG_BREAK === 0 ? "long" : "short";
+}
+
 function handleTimeUp() {
   stopTicking();
-  state.status = "idle";
-  render();
+
+  if (state.mode === "focus") {
+    state.completedSessions++;
+  }
+
+  // setMode resets the timer, so the next mode waits for Start
+  setMode(getNextMode());
 }
 
 // ===== Event handlers =====
@@ -157,6 +203,7 @@ function handleModeClick(event) {
 
 // ===== Init =====
 startBtn.addEventListener("click", handleStartClick);
-modesEl.addEventListener("click", handleModeClick);
 resetBtn.addEventListener("click", resetTimer);
+modesEl.addEventListener("click", handleModeClick);
+createCycleDots();
 render();
