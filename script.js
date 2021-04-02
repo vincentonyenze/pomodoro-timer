@@ -7,6 +7,7 @@ const modesEl = document.querySelector(".modes");
 const modeButtons = document.querySelectorAll(".mode-btn");
 const cycleDotsEl = document.getElementById("cycle-dots");
 const sessionText = document.getElementById("session-text");
+const ringProgress = document.getElementById("ring-progress");
 
 // ===== Config =====
 const MS_PER_SECOND = 1000;
@@ -16,10 +17,15 @@ const TICK_MS = 250;
 const SESSIONS_BEFORE_LONG_BREAK = 4;
 
 const MODES = {
-  focus: { label: "Time to focus" },
-  short: { label: "Take a short break" },
-  long: { label: "Take a long break" },
+  focus: { name: "Focus", label: "Time to focus" },
+  short: { name: "Short break", label: "Take a short break" },
+  long: { name: "Long break", label: "Take a long break" },
 };
+
+const APP_TITLE = "Pomodoro Timer";
+
+// Read the radius from the SVG itself so it's only defined in one place
+const RING_CIRCUMFERENCE = 2 * Math.PI * ringProgress.r.baseVal.value;
 
 // What the main button says for each status
 const START_BUTTON_LABELS = {
@@ -88,6 +94,22 @@ function renderSessions() {
   sessionText.textContent = `${count} focus session${count === 1 ? "" : "s"} completed`;
 }
 
+function renderRing() {
+  // 1 = full ring at the start, 0 = empty when time is up
+  const fractionLeft = state.remainingMs / getDurationMs(state.mode);
+  ringProgress.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - fractionLeft);
+}
+
+function renderTitle() {
+  if (state.status === "idle") {
+    document.title = APP_TITLE;
+    return;
+  }
+
+  const prefix = state.status === "paused" ? "⏸ " : "";
+  document.title = `${prefix}${formatTime(state.remainingMs)} · ${MODES[state.mode].name}`;
+}
+
 function render() {
   timeDisplay.textContent = formatTime(state.remainingMs);
   modeLabel.textContent = MODES[state.mode].label;
@@ -101,6 +123,8 @@ function render() {
   });
 
   renderSessions();
+  renderRing();
+  renderTitle();
 }
 
 // ===== Timer =====
@@ -206,4 +230,5 @@ startBtn.addEventListener("click", handleStartClick);
 resetBtn.addEventListener("click", resetTimer);
 modesEl.addEventListener("click", handleModeClick);
 createCycleDots();
+ringProgress.style.strokeDasharray = RING_CIRCUMFERENCE;
 render();
