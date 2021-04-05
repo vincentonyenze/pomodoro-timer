@@ -39,6 +39,7 @@ const settings = {
   focus: 25,
   short: 5,
   long: 15,
+  sound: true,
 };
 
 // ===== State =====
@@ -72,6 +73,65 @@ function getFilledDots() {
   const cycleJustFinished =
     inCycle === 0 && state.completedSessions > 0 && state.mode !== "focus";
   return cycleJustFinished ? SESSIONS_BEFORE_LONG_BREAK : inCycle;
+}
+
+// ===== Sound =====
+// Browsers only allow audio after the user interacts with the page,
+// so the AudioContext is created on the first click of Start.
+let audioContext = null;
+
+function unlockAudio() {
+  if (!window.AudioContext) return;
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+}
+
+// One short note that fades in and out, so it doesn't click
+function playTone(frequency, startTime, duration = 0.25) {
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.value = frequency;
+
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.3, startTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  oscillator.connect(gain).connect(audioContext.destination);
+  oscillator.start(startTime);
+  oscillator.stop(startTime + duration);
+}
+
+// Three rising notes
+function playChime() {
+  if (!settings.sound || !audioContext) return;
+
+  const now = audioContext.currentTime;
+  [660, 880, 1320].forEach((frequency, index) => {
+    playTone(frequency, now + index * 0.2);
+  });
+}
+
+// ===== Notifications =====
+function requestNotificationPermission() {
+  if (!("Notification" in window)) return;
+  // Only ask once; "granted" or "denied" means the user already chose
+  if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function notify(message) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  // If you're looking at the page, the sound and colors are enough
+  if (!document.hidden) return;
+
+  new Notification(APP_TITLE, { body: message });
 }
 
 // ===== Rendering =====
@@ -197,12 +257,20 @@ function getNextMode() {
 function handleTimeUp() {
   stopTicking();
 
-  if (state.mode === "focus") {
+  const finishedMode = state.mode;
+  if (finishedMode === "focus") {
     state.completedSessions++;
   }
 
   // setMode resets the timer, so the next mode waits for Start
   setMode(getNextMode());
+
+  const message =
+    finishedMode === "focus"
+      ? `Focus session done! Time for a ${MODES[state.mode].name.toLowerCase()}.`
+      : "Break's over. Time to focus!";
+  playChime();
+  notify(message);
 }
 
 // ===== Event handlers =====
@@ -211,6 +279,10 @@ function handleStartClick() {
   if (state.status === "running") {
     pauseTimer();
   } else {
+    // A click is a user interaction, so this is when browsers let us
+    // turn on audio and ask for notification permission
+    unlockAudio();
+    requestNotificationPermission();
     startTimer();
   }
 }
