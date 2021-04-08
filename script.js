@@ -8,6 +8,15 @@ const modeButtons = document.querySelectorAll(".mode-btn");
 const cycleDotsEl = document.getElementById("cycle-dots");
 const sessionText = document.getElementById("session-text");
 const ringProgress = document.getElementById("ring-progress");
+const settingsForm = document.getElementById("settings-form");
+const settingsError = document.getElementById("settings-error");
+const settingsStatus = document.getElementById("settings-status");
+const soundInput = document.getElementById("sound-enabled");
+const durationInputs = {
+  focus: document.getElementById("focus-minutes"),
+  short: document.getElementById("short-minutes"),
+  long: document.getElementById("long-minutes"),
+};
 
 // ===== Config =====
 const MS_PER_SECOND = 1000;
@@ -34,18 +43,31 @@ const START_BUTTON_LABELS = {
   paused: "Resume",
 };
 
-// Durations in minutes (made editable in Step 11)
-const settings = {
+// Durations in minutes
+const DEFAULT_SETTINGS = {
   focus: 25,
   short: 5,
   long: 15,
   sound: true,
 };
 
+// Allowed minutes for each duration (matches min/max in the HTML)
+const DURATION_LIMITS = {
+  focus: { min: 1, max: 120 },
+  short: { min: 1, max: 60 },
+  long: { min: 1, max: 60 },
+};
+
+const SETTINGS_KEY = "pomodoro-timer:settings";
+const STATUS_MESSAGE_MS = 3000;
+
+let settings = loadSettings();
+
 // ===== State =====
 const state = {
   mode: "focus", // "focus" | "short" | "long"
   status: "idle", // "idle" | "running" | "paused"
+  durationMs: settings.focus * MS_PER_MINUTE, // full length of the current session
   remainingMs: settings.focus * MS_PER_MINUTE,
   endTime: null, // timestamp (ms) when the running timer reaches 0
   intervalId: null, // id from setInterval, needed to stop it
@@ -73,6 +95,45 @@ function getFilledDots() {
   const cycleJustFinished =
     inCycle === 0 && state.completedSessions > 0 && state.mode !== "focus";
   return cycleJustFinished ? SESSIONS_BEFORE_LONG_BREAK : inCycle;
+}
+
+// ===== Settings storage =====
+function isValidMinutes(mode, value) {
+  const { min, max } = DURATION_LIMITS[mode];
+  return Number.isInteger(value) && value >= min && value <= max;
+}
+
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    const loaded = { ...DEFAULT_SETTINGS };
+
+    // Never trust stored data: only copy values that are valid,
+    // so anything missing or broken keeps its default
+    if (saved && typeof saved === "object") {
+      Object.keys(DURATION_LIMITS).forEach((mode) => {
+        if (isValidMinutes(mode, saved[mode])) {
+          loaded[mode] = saved[mode];
+        }
+      });
+      if (typeof saved.sound === "boolean") {
+        loaded.sound = saved.sound;
+      }
+    }
+
+    return loaded;
+  } catch (error) {
+    console.error("Could not load settings:", error);
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.error("Could not save settings:", error);
+  }
 }
 
 // ===== Sound =====
@@ -156,7 +217,7 @@ function renderSessions() {
 
 function renderRing() {
   // 1 = full ring at the start, 0 = empty when time is up
-  const fractionLeft = state.remainingMs / getDurationMs(state.mode);
+  const fractionLeft = state.remainingMs / state.durationMs;
   ringProgress.style.strokeDashoffset = RING_CIRCUMFERENCE * (1 - fractionLeft);
 }
 
@@ -194,7 +255,8 @@ function startTimer() {
 
   // Starting again after reaching 00:00 begins a fresh countdown
   if (state.remainingMs === 0) {
-    state.remainingMs = getDurationMs(state.mode);
+    state.durationMs = getDurationMs(state.mode);
+    state.remainingMs = state.durationMs;
   }
 
   // Remember WHEN the timer should end, not how many ticks are left
@@ -230,7 +292,8 @@ function resetTimer() {
   stopTicking();
   state.status = "idle";
   state.endTime = null;
-  state.remainingMs = getDurationMs(state.mode);
+  state.durationMs = getDurationMs(state.mode);
+  state.remainingMs = state.durationMs;
   render();
 }
 
@@ -297,10 +360,69 @@ function handleModeClick(event) {
   setMode(button.dataset.mode);
 }
 
+// ===== Settings form =====
+let statusTimeoutId = null;
+
+function fillSettingsForm() {
+  Object.entries(durationInputs).forEach(([mode, input]) => {
+    input.value = settings[mode];
+  });
+  soundInput.checked = settings.sound;
+}
+
+function clearSettingsError() {
+  settingsError.textContent = "";
+  settingsForm
+    .querySelectorAll("[aria-invalid]")
+    .forEach((input) => input.removeAttribute("aria-invalid"));
+}
+
+function showSettingsStatus(message) {
+  settingsStatus.textContent = message;
+  // Clear any earlier countdown so a quick second save isn't cut short
+  clearTimeout(statusTimeoutId);
+  statusTimeoutId = setTimeout(() => {
+    settingsStatus.textContent = "";
+  }, STATUS_MESSAGE_MS);
+}
+
+function handleSettingsSubmit(event) {
+  event.preventDefault();
+  clearSettingsError();
+
+  const newSettings = { sound: soundInput.checked };
+
+  for (const [mode, input] of Object.entries(durationInputs)) {
+    const value = Number(input.value);
+    if (!isValidMinutes(mode, value)) {
+      const { min, max } = DURATION_LIMITS[mode];
+      settingsError.textContent = `${MODES[mode].name} must be a whole number from ${min} to ${max}.`;
+      input.setAttribute("aria-invalid", "true");
+      input.focus();
+      return;
+    }
+    newSettings[mode] = value;
+  }
+
+  settings = newSettings;
+  saveSettings();
+
+  // Don't interrupt a session that's in progress
+  if (state.status === "idle") {
+    resetTimer();
+    showSettingsStatus("Settings saved.");
+  } else {
+    showSettingsStatus("Settings saved. New times apply from the next session.");
+  }
+}
+
 // ===== Init =====
 startBtn.addEventListener("click", handleStartClick);
 resetBtn.addEventListener("click", resetTimer);
 modesEl.addEventListener("click", handleModeClick);
+settingsForm.addEventListener("submit", handleSettingsSubmit);
+settingsForm.addEventListener("input", clearSettingsError);
+fillSettingsForm();
 createCycleDots();
 ringProgress.style.strokeDasharray = RING_CIRCUMFERENCE;
 render();

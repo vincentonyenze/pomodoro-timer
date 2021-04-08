@@ -321,11 +321,25 @@ body.is-running .ring__progress {
   accent-color: var(--color-accent);
 }
 
-.form-error {
+.form-error,
+.form-status {
   grid-column: 1 / -1;
-  color: var(--color-error);
   font-size: 0.875rem;
-  min-height: 1.25rem;
+}
+
+.form-error {
+  color: var(--color-error);
+}
+
+.form-status {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* Take up no space when there's no message */
+.form-error:empty,
+.form-status:empty {
+  display: none;
 }
 
 .settings__form .btn {
